@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { db, users } from "@/db";
 
 const SIGNUP_CREDITS = 100;
@@ -28,8 +28,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid or expired session" }, { status: 401 });
   }
 
-  // onConflictDoNothing makes this safe to call on every sign-in: the 100
-  // credit grant only ever lands on the row's first insert.
+  // onConflictDoNothing (no target = any unique constraint, id or email) makes
+  // this safe to call on every sign-in: the 100 credit grant only ever lands
+  // on the row's first insert.
   const [inserted] = await db
     .insert(users)
     .values({
@@ -38,12 +39,21 @@ export async function POST(request: NextRequest) {
       name: cloudHikeUser.name ?? null,
       credits: SIGNUP_CREDITS,
     })
-    .onConflictDoNothing({ target: users.id })
+    .onConflictDoNothing()
     .returning();
 
+  // A conflict can land on either the id or the email unique constraint
+  // (e.g. a returning user whose CloudHike id doesn't match what's stored),
+  // so look up by either when the insert didn't happen.
   const user =
     inserted ??
-    (await db.select().from(users).where(eq(users.id, cloudHikeUser.id)).limit(1))[0];
+    (
+      await db
+        .select()
+        .from(users)
+        .where(or(eq(users.id, cloudHikeUser.id), eq(users.email, cloudHikeUser.email)))
+        .limit(1)
+    )[0];
 
   if (!user) {
     return NextResponse.json({ error: "Failed to sync user" }, { status: 500 });

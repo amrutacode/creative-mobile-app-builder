@@ -9,7 +9,12 @@ const PENDING_PROMPT_KEY = "cloudhike.pendingPrompt"
 
 function readStoredPrompt(): string | null {
   if (typeof window === "undefined") return null
-  return window.sessionStorage.getItem(PENDING_PROMPT_KEY)
+  try {
+    return window.sessionStorage.getItem(PENDING_PROMPT_KEY)
+  } catch {
+    // sessionStorage can throw (e.g. Safari private browsing) - fall back to in-memory state.
+    return null
+  }
 }
 
 type AuthDialogContextValue = {
@@ -33,8 +38,12 @@ export function AuthDialogProvider({ children }: { children: React.ReactNode }) 
   const setPendingPrompt = React.useCallback((prompt: string | null) => {
     setPendingPromptState(prompt)
     if (typeof window === "undefined") return
-    if (prompt === null) window.sessionStorage.removeItem(PENDING_PROMPT_KEY)
-    else window.sessionStorage.setItem(PENDING_PROMPT_KEY, prompt)
+    try {
+      if (prompt === null) window.sessionStorage.removeItem(PENDING_PROMPT_KEY)
+      else window.sessionStorage.setItem(PENDING_PROMPT_KEY, prompt)
+    } catch {
+      // sessionStorage can throw (e.g. Safari private browsing) - in-memory state above still updates.
+    }
   }, [])
 
   const openSignIn = React.useCallback(

@@ -17,10 +17,11 @@ export function useAppUser() {
   const userId = session?.user?.id
 
   React.useEffect(() => {
-    if (!userId) {
-      setAppUser(null)
-      return
-    }
+    // Clear on every identity change (not just sign-out) so switching
+    // accounts never leaves the previous user's data on screen while the
+    // new sync request is in flight.
+    setAppUser(null)
+    if (!userId) return
 
     let cancelled = false
     const token = getStoredToken()
@@ -41,5 +42,9 @@ export function useAppUser() {
     }
   }, [userId])
 
-  return { session, isPending, appUser }
+  return {
+    session,
+    isPending,
+    appUser: appUser?.id === userId ? appUser : null,
+  }
 }
