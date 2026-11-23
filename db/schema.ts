@@ -1,9 +1,10 @@
-import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
+  id: text("id").primaryKey(), // CloudHike auth user id
   name: text("name"),
   email: text("email").notNull().unique(),
+  credits: integer("credits").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

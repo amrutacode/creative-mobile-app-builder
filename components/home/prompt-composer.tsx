@@ -4,6 +4,8 @@ import * as React from "react"
 import { ArrowUp, FileText, Paperclip, X } from "lucide-react"
 
 import { cn } from "cn"
+import { authClient } from "@/lib/auth-client"
+import { useAuthDialog } from "@/components/providers/auth-dialog-provider"
 import { Button } from "@/components/ui/button"
 import {
   InputGroup,
@@ -44,6 +46,8 @@ function formatSize(bytes: number) {
 }
 
 export function PromptComposer() {
+  const { data: session } = authClient.useSession()
+  const { openSignIn, pendingPrompt, clearPendingPrompt } = useAuthDialog()
   const [prompt, setPrompt] = React.useState("")
   const [files, setFiles] = React.useState<PendingFile[]>([])
   const fileInputRef = React.useRef<HTMLInputElement>(null)
@@ -54,6 +58,15 @@ export function PromptComposer() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Resume the prompt the user was submitting once they finish signing in.
+  React.useEffect(() => {
+    if (session?.user && pendingPrompt) {
+      runGenerate(pendingPrompt)
+      clearPendingPrompt()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user, pendingPrompt])
 
   function handleFilesSelected(selected: FileList | null) {
     if (!selected || selected.length === 0) return
@@ -73,11 +86,20 @@ export function PromptComposer() {
     })
   }
 
-  function handleSubmit() {
-    if (!prompt.trim() && files.length === 0) return
+  function runGenerate(value: string) {
+    // TODO: wire up to the app-generation backend.
     setPrompt("")
     files.forEach((f) => f.previewUrl && URL.revokeObjectURL(f.previewUrl))
     setFiles([])
+  }
+
+  function handleSubmit() {
+    if (!prompt.trim() && files.length === 0) return
+    if (!session?.user) {
+      openSignIn(prompt)
+      return
+    }
+    runGenerate(prompt)
   }
 
   const canSubmit = prompt.trim().length > 0 || files.length > 0
