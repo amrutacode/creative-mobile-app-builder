@@ -4,6 +4,8 @@ import * as React from "react"
 import { ArrowUp, FileText, Paperclip, X } from "lucide-react"
 
 import { cn } from "cn"
+import { authClient } from "@/lib/auth-client"
+import { useAuthDialog } from "@/components/providers/auth-dialog-provider"
 import { Button } from "@/components/ui/button"
 import {
   InputGroup,
@@ -43,9 +45,39 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+// Social sign-in navigates away and back (see signInWithSocial), which
+// unmounts this component and loses any selected File objects - they can't
+// be persisted the way the text prompt can. This flag records whether files
+// were part of the submission that triggered sign-in, so the resume effect
+// can tell "lost to a page reload" apart from "there were never any files."
+const PENDING_HAD_FILES_KEY = "cloudhike.pendingHadFiles"
+
+function readPendingHadFiles(): boolean {
+  if (typeof window === "undefined") return false
+  try {
+    return window.sessionStorage.getItem(PENDING_HAD_FILES_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+function writePendingHadFiles(hadFiles: boolean) {
+  if (typeof window === "undefined") return
+  try {
+    if (hadFiles) window.sessionStorage.setItem(PENDING_HAD_FILES_KEY, "1")
+    else window.sessionStorage.removeItem(PENDING_HAD_FILES_KEY)
+  } catch {
+    // sessionStorage unavailable - the resume effect just won't know files
+    // were pending, which is the safe default (it won't block a resume).
+  }
+}
+
 export function PromptComposer() {
+  const { data: session } = authClient.useSession()
+  const { openSignIn, pendingPrompt, clearPendingPrompt } = useAuthDialog()
   const [prompt, setPrompt] = React.useState("")
   const [files, setFiles] = React.useState<PendingFile[]>([])
+  const [attachmentsLostNotice, setAttachmentsLostNotice] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
@@ -55,6 +87,24 @@ export function PromptComposer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Resume the prompt the user was submitting once they finish signing in.
+  React.useEffect(() => {
+    if (session?.user && pendingPrompt !== null) {
+      if (readPendingHadFiles() && files.length === 0) {
+        // Files didn't survive the social sign-in redirect - restore the
+        // text and ask the user to re-attach rather than silently
+        // generating without the assets they intended to include.
+        setPrompt(pendingPrompt)
+        setAttachmentsLostNotice(true)
+      } else {
+        runGenerate(pendingPrompt)
+      }
+      clearPendingPrompt()
+      writePendingHadFiles(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user, pendingPrompt])
+
   function handleFilesSelected(selected: FileList | null) {
     if (!selected || selected.length === 0) return
     const next: PendingFile[] = Array.from(selected).map((file) => ({
@@ -63,6 +113,7 @@ export function PromptComposer() {
       previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
     }))
     setFiles((prev) => [...prev, ...next])
+    setAttachmentsLostNotice(false)
   }
 
   function removeFile(id: string) {
@@ -73,11 +124,21 @@ export function PromptComposer() {
     })
   }
 
-  function handleSubmit() {
-    if (!prompt.trim() && files.length === 0) return
+  function runGenerate(value: string) {
+    // TODO: wire up to the app-generation backend.
     setPrompt("")
     files.forEach((f) => f.previewUrl && URL.revokeObjectURL(f.previewUrl))
     setFiles([])
+  }
+
+  function handleSubmit() {
+    if (!prompt.trim() && files.length === 0) return
+    if (!session?.user) {
+      writePendingHadFiles(files.length > 0)
+      openSignIn(prompt)
+      return
+    }
+    runGenerate(prompt)
   }
 
   const canSubmit = prompt.trim().length > 0 || files.length > 0
@@ -162,6 +223,12 @@ export function PromptComposer() {
           </InputGroupAddon>
         </InputGroup>
       </div>
+
+      {attachmentsLostNotice && (
+        <p role="alert" className="mt-3 text-center text-sm text-destructive">
+          Your attachments couldn&apos;t be carried over after signing in — please re-attach them and send again.
+        </p>
+      )}
 
       <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
         {SUGGESTIONS.map((suggestion) => (

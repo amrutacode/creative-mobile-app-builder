@@ -2,6 +2,8 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 
+import { AuthDialogProvider } from "@/components/providers/auth-dialog-provider";
+
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
@@ -17,7 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body style={{ margin: 0, padding: 0 }}>
-        {children}
+        <AuthDialogProvider>{children}</AuthDialogProvider>
       </body>
     </html>
   );

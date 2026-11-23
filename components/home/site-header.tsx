@@ -1,21 +1,23 @@
 "use client"
 
-import * as React from "react"
 import Link from "next/link"
 import { LogOut, Sparkles } from "lucide-react"
 
-import { authClient } from "@/lib/auth-client"
+import { signOut } from "@/lib/auth-client"
+import { useAppUser } from "@/lib/use-app-user"
+import { useAuthDialog } from "@/components/providers/auth-dialog-provider"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { SignInDialog } from "@/components/home/sign-in-dialog"
 
 const NAV_LINKS = [
   { label: "Showcase", href: "#showcase" },
@@ -25,8 +27,8 @@ const NAV_LINKS = [
 ]
 
 export function SiteHeader() {
-  const { data: session } = authClient.useSession()
-  const [signInOpen, setSignInOpen] = React.useState(false)
+  const { session, appUser } = useAppUser()
+  const { openSignIn } = useAuthDialog()
   const user = session?.user
 
   return (
@@ -64,11 +66,18 @@ export function SiteHeader() {
                 </Avatar>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel className="truncate">
-                  {user.name ?? user.email}
-                </DropdownMenuLabel>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className="truncate">
+                    {user.name ?? user.email}
+                  </DropdownMenuLabel>
+                  {appUser && (
+                    <div className="px-2 pb-1.5">
+                      <Badge variant="outline">{appUser.credits} credits</Badge>
+                    </div>
+                  )}
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => authClient.signOut()}>
+                <DropdownMenuItem onClick={() => signOut()}>
                   <LogOut />
                   Sign out
                 </DropdownMenuItem>
@@ -76,12 +85,12 @@ export function SiteHeader() {
             </DropdownMenu>
           ) : (
             <>
-              <Button variant="ghost" onClick={() => setSignInOpen(true)}>
+              <Button variant="ghost" onClick={() => openSignIn()}>
                 Sign in
               </Button>
               <Button
                 className="bg-indigo-600 hover:bg-indigo-500"
-                onClick={() => setSignInOpen(true)}
+                onClick={() => openSignIn()}
               >
                 Get started
               </Button>
@@ -89,8 +98,6 @@ export function SiteHeader() {
           )}
         </div>
       </div>
-
-      <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
     </header>
   )
 }
