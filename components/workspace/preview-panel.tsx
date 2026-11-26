@@ -33,7 +33,8 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DEFAULT_OPEN_FILE, DUMMY_FILE_TREE } from "./dummy-data"
-import { PhoneFrame } from "./phone-mockup"
+import { PhoneFrame, ScreenHtml } from "./phone-mockup"
+import type { GeneratedScreen } from "@/lib/agent-protocol"
 import type { FileNode } from "./types"
 
 /* -------------------------------------------------------------------------- */
@@ -141,11 +142,37 @@ function ExpoQrDialog() {
 /*                                  Preview                                   */
 /* -------------------------------------------------------------------------- */
 
-function AppPreview() {
+function AppPreview({ screens }: { screens: GeneratedScreen[] }) {
+  const [selectedId, setSelectedId] = React.useState<string | null>(null)
+  const selected = screens.find((s) => s.id === selectedId) ?? screens[0]
+
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {screens.length > 0 && (
+        <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-border/70 bg-white px-3 py-2">
+          {screens.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setSelectedId(s.id)}
+              aria-pressed={s.id === selected?.id}
+              className={cn(
+                "shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium",
+                s.id === selected?.id
+                  ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {s.name}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-5">
         <PhoneFrame className="aspect-[9/19] h-full max-h-[620px] w-auto max-w-full">
+          {selected ? (
+            <ScreenHtml key={selected.id} html={selected.html} title={`${selected.name} preview`} interactive />
+          ) : (
           <div className="flex h-full flex-col items-center justify-center px-6 text-center">
             <span className="flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 text-white shadow-lg shadow-indigo-500/30">
               <Sparkles className="size-5" />
@@ -155,6 +182,7 @@ function AppPreview() {
               Your interactive app preview will run here once it&apos;s generated.
             </p>
           </div>
+          )}
         </PhoneFrame>
       </div>
 
@@ -352,7 +380,7 @@ function IconAction({ label, children }: { label: string; children: React.ReactN
   )
 }
 
-export function PreviewPanel() {
+export function PreviewPanel({ screens = [] }: { screens?: GeneratedScreen[] }) {
   return (
     <section aria-label="App preview" className="flex h-full min-h-0 flex-col bg-neutral-50">
       <Tabs defaultValue="preview" className="h-full min-h-0 gap-0">
@@ -378,7 +406,7 @@ export function PreviewPanel() {
         </div>
 
         <TabsContent value="preview" className="min-h-0">
-          <AppPreview />
+          <AppPreview screens={screens} />
         </TabsContent>
         <TabsContent value="code" className="min-h-0 bg-white">
           <CodeView />

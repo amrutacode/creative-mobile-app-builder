@@ -33,6 +33,9 @@ import {
 
 const STATUS_STYLES: Record<string, { label: string; dot: string; pill: string }> = {
   pending: { label: "Queued", dot: "bg-amber-500", pill: "border-amber-200 bg-amber-50 text-amber-700" },
+  planning: { label: "Planning", dot: "bg-indigo-500 animate-pulse", pill: "border-indigo-200 bg-indigo-50 text-indigo-700" },
+  awaiting_confirmation: { label: "Awaiting approval", dot: "bg-amber-500", pill: "border-amber-200 bg-amber-50 text-amber-700" },
+  paused: { label: "Paused", dot: "bg-neutral-400", pill: "border-border bg-muted text-muted-foreground" },
   generating: { label: "Generating", dot: "bg-indigo-500 animate-pulse", pill: "border-indigo-200 bg-indigo-50 text-indigo-700" },
   ready: { label: "Ready", dot: "bg-emerald-500", pill: "border-emerald-200 bg-emerald-50 text-emerald-700" },
   failed: { label: "Failed", dot: "bg-red-500", pill: "border-red-200 bg-red-50 text-red-700" },

@@ -1,10 +1,13 @@
+"use client"
+
+import * as React from "react"
 import { cn } from "cn"
 import { Bell, Heart, Home, Search, Settings, User } from "lucide-react"
 
 import type { CanvasScreen } from "./types"
 
-// A device frame + skeleton UI used as a stand-in until real generated
-// screens exist. Purely presentational.
+// A device frame, the skeleton UI used while a screen is still being built,
+// and the sandboxed renderer for generated screens.
 
 export function PhoneFrame({
   className,
@@ -161,4 +164,55 @@ export function ScreenSkeleton({ variant }: { variant: CanvasScreen["variant"] }
         </div>
       )
   }
+}
+
+/** Width the agent designs screens for; scaled down to fit the frame. */
+const DESIGN_WIDTH = 390
+
+/**
+ * Renders agent-generated HTML in a fully sandboxed iframe (no scripts, no
+ * same-origin access), scaled from a 390px design width to fit its container.
+ */
+export function ScreenHtml({
+  html,
+  title,
+  interactive = false,
+}: {
+  html: string
+  title: string
+  interactive?: boolean
+}) {
+  const ref = React.useRef<HTMLDivElement>(null)
+  const [size, setSize] = React.useState({ width: 0, height: 0 })
+
+  React.useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const measure = () => setSize({ width: el.clientWidth, height: el.clientHeight })
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const scale = size.width / DESIGN_WIDTH
+
+  return (
+    <div ref={ref} className="absolute inset-0 overflow-hidden bg-white">
+      {size.width > 0 && (
+        <iframe
+          title={title}
+          srcDoc={html}
+          sandbox=""
+          referrerPolicy="no-referrer"
+          className={cn("origin-top-left border-0", !interactive && "pointer-events-none")}
+          style={{
+            width: DESIGN_WIDTH,
+            height: size.height / scale,
+            transform: `scale(${scale})`,
+          }}
+        />
+      )}
+    </div>
+  )
 }

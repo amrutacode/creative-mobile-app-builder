@@ -1,5 +1,7 @@
-// Shared workspace types. Placeholder data lives in ./dummy-data.ts until the
-// AI build pipeline produces real screens, files and chat history.
+// Shared workspace types. The code view still uses placeholder files from
+// ./dummy-data.ts; chat, plan and screens come from the AI agent.
+
+import type { AppPlan } from "@/lib/agent-protocol"
 
 export type WorkspaceProject = {
   id: string
@@ -15,18 +17,40 @@ export type ChatMessage = {
   id: string
   role: "user" | "assistant"
   content: string
-  /** Optional build plan rendered as a checklist under an assistant message. */
-  steps?: { label: string; state: "done" | "active" | "pending" }[]
   attachments?: WorkspaceAsset[]
+  /** Plan presented by the agent in this message (rendered as a plan card). */
+  plan?: AppPlan
+  /** Text the agent streamed after presenting the plan (rendered below the card). */
+  footer?: string
+  /** Streamed reasoning summary, shown in a collapsible "thought process". */
+  thinking?: string
+  /** Live status label while the agent works on this message. */
+  status?: string
+  streaming?: boolean
+  error?: string
+  /** Set on per-screen build messages. */
+  screenId?: string
+  /** Characters of screen markup written so far (screen messages). */
+  progressChars?: number
+  /** Summary of a finished screen (screen messages). */
+  summary?: string
 }
+
+export type ScreenBuildState = "queued" | "generating" | "ready"
 
 export type CanvasScreen = {
   id: string
   name: string
   x: number
   y: number
-  /** Which placeholder layout to draw until real screens are generated. */
+  /** Which placeholder layout to draw until the real screen exists. */
   variant: "home" | "list" | "detail" | "profile"
+  /** Generated HTML mockup, once available. */
+  html?: string
+  buildState?: ScreenBuildState
+  /** Added by the user (e.g. duplicated) rather than by the agent. */
+  userCreated?: boolean
+  renamed?: boolean
 }
 
 export type FileNode =
