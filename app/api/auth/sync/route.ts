@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, or } from "drizzle-orm";
 import { db, users } from "@/db";
+import { authenticateRequest } from "@/lib/server/cloudhike-auth";
 
 const SIGNUP_CREDITS = 100;
 
@@ -18,13 +19,8 @@ async function getCloudHikeUser(token: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!token) {
-    return NextResponse.json({ error: "Missing session token" }, { status: 401 });
-  }
-
-  const cloudHikeUser = await getCloudHikeUser(token);
-  if (!cloudHikeUser?.id || !cloudHikeUser?.email) {
+  const cloudHikeUser = await authenticateRequest(request);
+  if (!cloudHikeUser) {
     return NextResponse.json({ error: "Invalid or expired session" }, { status: 401 });
   }
 

@@ -1,10 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { ArrowUp, FileText, Paperclip, X } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { ArrowUp, FileText, Loader2, Paperclip, X } from "lucide-react"
 
 import { cn } from "cn"
-import { authClient } from "@/lib/auth-client"
+import { authClient, getStoredToken } from "@/lib/auth-client"
 import { useAuthDialog } from "@/components/providers/auth-dialog-provider"
 import { Button } from "@/components/ui/button"
 import {
@@ -73,11 +74,14 @@ function writePendingHadFiles(hadFiles: boolean) {
 }
 
 export function PromptComposer() {
+  const router = useRouter()
   const { data: session } = authClient.useSession()
   const { openSignIn, pendingPrompt, clearPendingPrompt } = useAuthDialog()
   const [prompt, setPrompt] = React.useState("")
   const [files, setFiles] = React.useState<PendingFile[]>([])
   const [attachmentsLostNotice, setAttachmentsLostNotice] = React.useState(false)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
@@ -124,14 +128,40 @@ export function PromptComposer() {
     })
   }
 
-  function runGenerate(value: string) {
-    // TODO: wire up to the app-generation backend.
-    setPrompt("")
-    files.forEach((f) => f.previewUrl && URL.revokeObjectURL(f.previewUrl))
-    setFiles([])
+  async function runGenerate(value: string) {
+    setError(null)
+    setIsSubmitting(true)
+    try {
+      const formData = new FormData()
+      formData.set("prompt", value)
+      files.forEach(({ file }) => formData.append("files", file))
+
+      const token = getStoredToken()
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: token ? { authorization: `Bearer ${token}` } : undefined,
+        body: formData,
+      })
+      const data = await res.json().catch(() => null)
+
+      if (!res.ok) {
+        setError(data?.error ?? "Something went wrong. Please try again.")
+        return
+      }
+
+      files.forEach((f) => f.previewUrl && URL.revokeObjectURL(f.previewUrl))
+      setFiles([])
+      setPrompt("")
+      router.push(`/workspace/${data.projectId}`)
+    } catch {
+      setError("Couldn't reach the server. Check your connection and try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   function handleSubmit() {
+    if (isSubmitting) return
     if (!prompt.trim() && files.length === 0) return
     if (!session?.user) {
       writePendingHadFiles(files.length > 0)
@@ -141,7 +171,7 @@ export function PromptComposer() {
     runGenerate(prompt)
   }
 
-  const canSubmit = prompt.trim().length > 0 || files.length > 0
+  const canSubmit = (prompt.trim().length > 0 || files.length > 0) && !isSubmitting
 
   return (
     <div className="w-full">
@@ -203,6 +233,7 @@ export function PromptComposer() {
               size="sm"
               variant="outline"
               className="rounded-full"
+              disabled={isSubmitting}
               onClick={() => fileInputRef.current?.click()}
             >
               <Paperclip />
@@ -218,7 +249,7 @@ export function PromptComposer() {
               onClick={handleSubmit}
               aria-label="Generate app"
             >
-              <ArrowUp />
+              {isSubmitting ? <Loader2 className="animate-spin" /> : <ArrowUp />}
             </Button>
           </InputGroupAddon>
         </InputGroup>
