@@ -16,6 +16,9 @@ export const projects = pgTable("projects", {
   userId: text("user_id")
     .notNull()
     .references(() => users.id),
+  // Display name auto-generated from the prompt (see lib/project-name.ts).
+  // Nullable so rows created before this column existed still load.
+  name: text("name"),
   prompt: text("prompt").notNull(),
   // 'pending' is the only status for now; the AI build pipeline will add more later.
   status: text("status").notNull().default("pending"),
