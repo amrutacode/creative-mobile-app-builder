@@ -1,35 +1,10 @@
-// Placeholder content for the workspace layout. Every export here is meant to
-// be replaced by real data from the AI build pipeline.
+// Placeholder content for the workspace layout (code view files and phone
+// frame size). The files are meant to be replaced by real generated code.
 
-import type { CanvasScreen, ChatMessage, FileNode } from "./types"
+import type { FileNode } from "./types"
 
 export const PHONE_WIDTH = 280
 export const PHONE_HEIGHT = 580
-
-export const DUMMY_SCREENS: CanvasScreen[] = [
-  { id: "screen-home", name: "Home", x: 0, y: 0, variant: "home" },
-  { id: "screen-list", name: "Explore", x: 340, y: 0, variant: "list" },
-  { id: "screen-detail", name: "Details", x: 680, y: 0, variant: "detail" },
-  { id: "screen-profile", name: "Profile", x: 1020, y: 0, variant: "profile" },
-]
-
-export function buildInitialMessages(prompt: string): ChatMessage[] {
-  return [
-    { id: "m-user-0", role: "user", content: prompt || "Build me a mobile app." },
-    {
-      id: "m-ai-0",
-      role: "assistant",
-      content:
-        "Got it! I'll plan the screens, design the UI and generate a working Expo app. Here's the build plan:",
-      steps: [
-        { label: "Understand requirements", state: "done" },
-        { label: "Plan screens & navigation", state: "active" },
-        { label: "Design UI screens", state: "pending" },
-        { label: "Generate Expo code", state: "pending" },
-      ],
-    },
-  ]
-}
 
 const APP_TSX = `import { NavigationContainer } from "@react-navigation/native"
 import { createNativeStackNavigator } from "@react-navigation/native-stack"

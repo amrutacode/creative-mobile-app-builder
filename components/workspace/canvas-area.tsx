@@ -5,6 +5,7 @@ import {
   Copy,
   Hand,
   LayoutGrid,
+  Loader2,
   Maximize,
   Minus,
   MousePointer2,
@@ -18,8 +19,8 @@ import { cn } from "cn"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { DUMMY_SCREENS, PHONE_HEIGHT, PHONE_WIDTH } from "./dummy-data"
-import { PhoneFrame, ScreenSkeleton } from "./phone-mockup"
+import { PHONE_HEIGHT, PHONE_WIDTH } from "./dummy-data"
+import { PhoneFrame, ScreenHtml, ScreenSkeleton } from "./phone-mockup"
 import type { CanvasScreen } from "./types"
 
 const MIN_ZOOM = 0.2
@@ -93,10 +94,40 @@ function ToolButton({
   )
 }
 
-export function CanvasArea() {
+/**
+ * Merge agent-provided screens into the canvas while keeping the user's local
+ * edits: positions, renames, duplicates and deletions.
+ */
+function mergeScreens(prev: CanvasScreen[], incoming: CanvasScreen[], known: Set<string>) {
+  const byId = new Map(incoming.map((s) => [s.id, s]))
+  const next = prev
+    .filter((s) => s.userCreated || byId.has(s.id))
+    .map((s) => {
+      const fresh = byId.get(s.id)
+      if (!fresh) return s
+      return { ...fresh, x: s.x, y: s.y, name: s.renamed ? s.name : fresh.name, renamed: s.renamed }
+    })
+  for (const s of incoming) {
+    if (known.has(s.id)) continue
+    known.add(s.id)
+    next.push(s)
+  }
+  return next
+}
+
+export function CanvasArea({
+  screens: incomingScreens,
+  emptyTitle = "No screens yet",
+  emptyDescription = "Generated screens will appear here. Ask the agent in the chat to design one.",
+}: {
+  screens: CanvasScreen[]
+  emptyTitle?: string
+  emptyDescription?: string
+}) {
   const containerRef = React.useRef<HTMLDivElement>(null)
   const dragRef = React.useRef<DragState | null>(null)
-  const [screens, setScreens] = React.useState<CanvasScreen[]>(DUMMY_SCREENS)
+  const knownIdsRef = React.useRef(new Set(incomingScreens.map((s) => s.id)))
+  const [screens, setScreens] = React.useState<CanvasScreen[]>(incomingScreens)
   const [selectedId, setSelectedId] = React.useState<string | null>(null)
   const [renamingId, setRenamingId] = React.useState<string | null>(null)
   const [view, setView] = React.useState<View>({ x: 0, y: 0, zoom: 1 })
@@ -112,19 +143,28 @@ export function CanvasArea() {
     setView(fitView(target, el.clientWidth, el.clientHeight))
   }, [screens])
 
+  // Pull in screens as the agent plans and builds them.
+  React.useEffect(() => {
+    setScreens((prev) => mergeScreens(prev, incomingScreens, knownIdsRef.current))
+  }, [incomingScreens])
+
   // Frame all screens once the container first gets a real size (panels lay
-  // out after mount, so the initial clientWidth can still be 0).
+  // out after mount, so the initial clientWidth can still be 0), and again
+  // whenever the agent adds new screens.
+  const screenCount = screens.length
+  const screensRef = React.useRef(screens)
+  screensRef.current = screens
   React.useEffect(() => {
     const el = containerRef.current
-    if (!el) return
+    if (!el || screenCount === 0) return
     const observer = new ResizeObserver(() => {
       if (el.clientWidth === 0 || el.clientHeight === 0) return
-      setView(fitView(DUMMY_SCREENS, el.clientWidth, el.clientHeight))
+      setView(fitView(screensRef.current, el.clientWidth, el.clientHeight))
       observer.disconnect()
     })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+  }, [screenCount])
 
   const zoomAt = React.useCallback((nextZoom: number, clientX?: number, clientY?: number) => {
     const el = containerRef.current
@@ -231,6 +271,7 @@ export function CanvasArea() {
       ...source,
       id: `${source.id}-copy-${Date.now()}`,
       name: `${source.name} copy`,
+      userCreated: true,
       x: source.x + 40,
       y: source.y + 40,
     }
@@ -245,7 +286,9 @@ export function CanvasArea() {
 
   function renameScreen(id: string, name: string) {
     const trimmed = name.trim()
-    if (trimmed) setScreens((prev) => prev.map((s) => (s.id === id ? { ...s, name: trimmed } : s)))
+    if (trimmed) {
+      setScreens((prev) => prev.map((s) => (s.id === id ? { ...s, name: trimmed, renamed: true } : s)))
+    }
     setRenamingId(null)
   }
 
@@ -378,7 +421,29 @@ export function CanvasArea() {
                   style={{ height: PHONE_HEIGHT }}
                 >
                   <PhoneFrame className="pointer-events-none h-full">
-                    <ScreenSkeleton variant={screen.variant} />
+                    {screen.html ? (
+                      <ScreenHtml html={screen.html} title={`${screen.name} screen`} />
+                    ) : (
+                      <>
+                        <div className={cn(screen.buildState === "generating" ? "animate-pulse" : "opacity-50", "h-full")}>
+                          <ScreenSkeleton variant={screen.variant} />
+                        </div>
+                        {screen.buildState && (
+                          <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center">
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white/95 px-3 py-1.5 text-xs font-medium shadow-sm">
+                              {screen.buildState === "generating" ? (
+                                <>
+                                  <Loader2 className="size-3.5 animate-spin text-indigo-600" />
+                                  Designing…
+                                </>
+                              ) : (
+                                <span className="text-muted-foreground">Queued</span>
+                              )}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </PhoneFrame>
                 </div>
               </div>
@@ -391,10 +456,8 @@ export function CanvasArea() {
             <span className="flex size-11 items-center justify-center rounded-xl border border-indigo-100 bg-indigo-50 text-indigo-600">
               <Sparkles className="size-5" />
             </span>
-            <p className="mt-3 text-sm font-medium text-foreground">No screens yet</p>
-            <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-              Generated screens will appear here. Ask the agent in the chat to design one.
-            </p>
+            <p className="mt-3 text-sm font-medium text-foreground">{emptyTitle}</p>
+            <p className="mt-1 max-w-xs text-xs text-muted-foreground">{emptyDescription}</p>
           </div>
         )}
 

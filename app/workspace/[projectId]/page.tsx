@@ -13,8 +13,8 @@ import { WorkspaceLayout } from "@/components/workspace/workspace-layout"
 import { ChatPanel } from "@/components/workspace/chat-panel"
 import { CanvasArea } from "@/components/workspace/canvas-area"
 import { PreviewPanel } from "@/components/workspace/preview-panel"
-import { buildInitialMessages } from "@/components/workspace/dummy-data"
-import type { WorkspaceAsset, WorkspaceProject } from "@/components/workspace/types"
+import { useAppAgent } from "@/components/workspace/use-app-agent"
+import type { CanvasScreen, WorkspaceAsset, WorkspaceProject } from "@/components/workspace/types"
 
 type ProjectResponse = {
   project: WorkspaceProject
@@ -64,19 +64,13 @@ export default function WorkspacePage() {
     if (data) document.title = `${data.project.name} · AppForge`
   }, [data])
 
-  const initialMessages = React.useMemo(() => {
-    if (!data) return []
-    const [first, ...rest] = buildInitialMessages(data.project.prompt)
-    return [{ ...first, attachments: data.assets }, ...rest]
-  }, [data])
+  if (!isLoading && data) {
+    return <Workspace project={data.project} assets={data.assets} />
+  }
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-white">
-      <WorkspaceHeader
-        projectName={data?.project.name}
-        status={data?.project.status}
-        isLoading={isLoading}
-      />
+      <WorkspaceHeader projectName={data?.project.name} status={data?.project.status} isLoading={isLoading} />
 
       {isLoading && (
         <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -99,14 +93,66 @@ export default function WorkspacePage() {
           </Button>
         </div>
       )}
+    </div>
+  )
+}
 
-      {!isLoading && data && (
-        <WorkspaceLayout
-          chat={<ChatPanel initialMessages={initialMessages} />}
-          canvas={<CanvasArea />}
-          preview={<PreviewPanel />}
-        />
-      )}
+const SCREEN_GAP = 340
+const VARIANTS: CanvasScreen["variant"][] = ["home", "list", "detail", "profile"]
+
+/** The loaded workspace. Mounting it starts (or resumes) the AI agent automatically. */
+function Workspace({ project, assets }: { project: WorkspaceProject; assets: WorkspaceAsset[] }) {
+  const agent = useAppAgent(project, assets)
+  const { plan, confirmed, screens, generatingId } = agent
+
+  // Screens appear on the canvas once the plan is confirmed: placeholders first,
+  // replaced by the real design as each one is generated. While a revised plan
+  // awaits confirmation, the screens built so far stay visible.
+  const canvasScreens = React.useMemo<CanvasScreen[]>(() => {
+    if (!plan) return []
+    if (!confirmed) {
+      return screens.map((built, i) => ({
+        id: built.id,
+        name: built.name,
+        x: i * SCREEN_GAP,
+        y: 0,
+        variant: VARIANTS[i % VARIANTS.length],
+        html: built.html,
+        buildState: "ready",
+      }))
+    }
+    return plan.screens.map((planned, i) => {
+      const built = screens.find((s) => s.id === planned.id)
+      return {
+        id: planned.id,
+        name: planned.name,
+        x: i * SCREEN_GAP,
+        y: 0,
+        variant: VARIANTS[i % VARIANTS.length],
+        html: built?.html,
+        buildState: built ? "ready" : generatingId === planned.id ? "generating" : "queued",
+      }
+    })
+  }, [confirmed, generatingId, plan, screens])
+
+  return (
+    <div className="flex h-dvh flex-col overflow-hidden bg-white">
+      <WorkspaceHeader projectName={project.name} status={agent.status} />
+      <WorkspaceLayout
+        chat={<ChatPanel agent={agent} />}
+        canvas={
+          <CanvasArea
+            screens={canvasScreens}
+            emptyTitle={plan ? "Waiting for your go-ahead" : "Planning your app"}
+            emptyDescription={
+              plan
+                ? "Review the plan in the chat. Screens will appear here one by one once you confirm it."
+                : "The agent is reading your request and drafting a screen plan."
+            }
+          />
+        }
+        preview={<PreviewPanel screens={screens} />}
+      />
     </div>
   )
 }
