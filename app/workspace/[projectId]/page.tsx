@@ -1,17 +1,24 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { Sparkles } from "lucide-react"
+import { AlertCircle, ArrowLeft } from "lucide-react"
 
 import { getStoredToken } from "@/lib/auth-client"
-import { SiteHeader } from "@/components/home/site-header"
-import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
+import { WorkspaceHeader } from "@/components/workspace/workspace-header"
+import { WorkspaceLayout } from "@/components/workspace/workspace-layout"
+import { ChatPanel } from "@/components/workspace/chat-panel"
+import { CanvasArea } from "@/components/workspace/canvas-area"
+import { PreviewPanel } from "@/components/workspace/preview-panel"
+import { buildInitialMessages } from "@/components/workspace/dummy-data"
+import type { WorkspaceAsset, WorkspaceProject } from "@/components/workspace/types"
 
 type ProjectResponse = {
-  project: { id: string; prompt: string; status: string; createdAt: string }
-  assets: { id: string; fileName: string; url: string }[]
+  project: WorkspaceProject
+  assets: WorkspaceAsset[]
 }
 
 export default function WorkspacePage() {
@@ -53,69 +60,53 @@ export default function WorkspacePage() {
     }
   }, [projectId, router])
 
+  React.useEffect(() => {
+    if (data) document.title = `${data.project.name} · AppForge`
+  }, [data])
+
+  const initialMessages = React.useMemo(() => {
+    if (!data) return []
+    const [first, ...rest] = buildInitialMessages(data.project.prompt)
+    return [{ ...first, attachments: data.assets }, ...rest]
+  }, [data])
+
   return (
-    <div className="min-h-screen bg-white">
-      <SiteHeader />
+    <div className="flex h-dvh flex-col overflow-hidden bg-white">
+      <WorkspaceHeader
+        projectName={data?.project.name}
+        status={data?.project.status}
+        isLoading={isLoading}
+      />
 
-      <main className="mx-auto max-w-3xl px-6 py-14">
-        {isLoading && (
-          <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground">
-            <Spinner />
-            Loading project...
-          </div>
-        )}
+      {isLoading && (
+        <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Spinner />
+          Loading workspace...
+        </div>
+      )}
 
-        {!isLoading && error && (
-          <p role="alert" className="py-24 text-center text-sm text-destructive">
+      {!isLoading && error && (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+          <span className="flex size-11 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+            <AlertCircle className="size-5" />
+          </span>
+          <p role="alert" className="max-w-sm text-sm text-foreground">
             {error}
           </p>
-        )}
+          <Button variant="outline" render={<Link href="/" />} nativeButton={false}>
+            <ArrowLeft />
+            Back to home
+          </Button>
+        </div>
+      )}
 
-        {!isLoading && data && (
-          <div className="space-y-8">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-                  Your project
-                </h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Created {new Date(data.project.createdAt).toLocaleString()}
-                </p>
-              </div>
-              <Badge variant="outline" className="capitalize">
-                {data.project.status}
-              </Badge>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-white p-5">
-              <h2 className="text-sm font-medium text-muted-foreground">Prompt</h2>
-              <p className="mt-2 text-base text-foreground">{data.project.prompt}</p>
-            </div>
-
-            {data.assets.length > 0 && (
-              <div>
-                <h2 className="text-sm font-medium text-muted-foreground">Reference assets</h2>
-                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {data.assets.map((asset) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      key={asset.id}
-                      src={asset.url}
-                      alt={asset.fileName}
-                      className="aspect-square w-full rounded-xl border border-border object-cover"
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2 rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/50 p-5 text-sm text-indigo-700">
-              <Sparkles className="size-4 shrink-0" />
-              AI build execution is coming soon — your project has been saved and is queued.
-            </div>
-          </div>
-        )}
-      </main>
+      {!isLoading && data && (
+        <WorkspaceLayout
+          chat={<ChatPanel initialMessages={initialMessages} />}
+          canvas={<CanvasArea />}
+          preview={<PreviewPanel />}
+        />
+      )}
     </div>
   )
 }

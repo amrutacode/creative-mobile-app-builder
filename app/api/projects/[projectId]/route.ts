@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, projects, projectAssets } from "@/db";
 import { authenticateRequest } from "@/lib/server/cloudhike-auth";
 import { getAssetUrl } from "@/lib/server/storage";
+import { generateProjectName } from "@/lib/project-name";
 
 export async function GET(
   request: NextRequest,
@@ -39,6 +40,7 @@ export async function GET(
   return NextResponse.json({
     project: {
       id: project.id,
+      name: project.name ?? generateProjectName(project.prompt),
       prompt: project.prompt,
       status: project.status,
       createdAt: project.createdAt,

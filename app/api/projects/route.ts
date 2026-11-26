@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, projects, projectAssets } from "@/db";
 import { authenticateRequest } from "@/lib/server/cloudhike-auth";
 import { uploadProjectAsset } from "@/lib/server/storage";
+import { DEFAULT_PROJECT_NAME, generateProjectName } from "@/lib/project-name";
 
 const MAX_FILES = 5;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
   }
 
   const projectId = crypto.randomUUID();
+  const name = prompt ? generateProjectName(prompt) : DEFAULT_PROJECT_NAME;
 
   const uploaded: { key: string; fileName: string; contentType: string; size: number }[] = [];
   try {
@@ -58,6 +60,7 @@ export async function POST(request: NextRequest) {
     await tx.insert(projects).values({
       id: projectId,
       userId: user.id,
+      name,
       prompt,
       status: "pending",
     });
@@ -76,5 +79,5 @@ export async function POST(request: NextRequest) {
     }
   });
 
-  return NextResponse.json({ projectId, status: "pending" });
+  return NextResponse.json({ projectId, name, status: "pending" });
 }
